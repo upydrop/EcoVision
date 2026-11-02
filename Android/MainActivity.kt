@@ -31,6 +31,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import androidx.activity.compose.BackHandler
+
+enum class Screen { Menu, Camera, Settings, About }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,7 +41,22 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                WasteCameraScreen()
+                var screen by remember { mutableStateOf(Screen.Menu) }
+
+                BackHandler(enabled = screen != Screen.Menu) {
+                    screen = Screen.Menu
+                }
+
+                when (screen) {
+                    Screen.Menu -> MainMenuScreen(
+                        onCamera = { screen = Screen.Camera },
+                        onSettings = { screen = Screen.Settings },
+                        onAbout = { screen = Screen.About }
+                    )
+                    Screen.Camera -> WasteCameraScreen()
+                    Screen.Settings -> PlaceholderScreen("Settings")
+                    Screen.About -> PlaceholderScreen("About")
+                }
             }
         }
     }
@@ -89,6 +107,9 @@ fun WasteCameraScreen() {
 
     DisposableEffect(Unit) {
         onDispose {
+            try {
+                ProcessCameraProvider.getInstance(context).get().unbindAll()
+            } catch (_: Exception) {}
             cameraExecutor.shutdown()
             classifier.close()
         }

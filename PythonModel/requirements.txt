@@ -1,5 +1,7 @@
+# Python 3.10–3.11
+# TensorFlow 2.15.1 requires NumPy < 2.0.
 tensorflow==2.15.1
-numpy<2
-matplotlib
-scikit-learn
-Pillow
+numpy==1.26.4
+matplotlib==3.8.4
+scikit-learn==1.4.2
+Pillow==10.4.0

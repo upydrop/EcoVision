@@ -1,117 +1,194 @@
 # EcoVision
 
-EcoVision is an Android application that uses on-device machine learning to classify waste into five categories: **glass, metal, paper, plastic, and trash**.
+EcoVision is an Android waste-sorting assistant that classifies materials into five categories: **glass, metal, paper, plastic, and trash**. It uses an on-device TensorFlow Lite model, so image inference runs locally on the Android device.
 
-The project includes an Android application written in Kotlin and a Python-based machine learning pipeline for training, evaluating, and exporting the image classification model.
+The repository contains:
+- **`Android/`** — Kotlin source files and the Android app module configuration.
+- **`PythonModel/`** — Python scripts for training, fine-tuning, evaluating, and exporting the image classifier.
 
-## Project Structure
+## Features
 
-- **Android application** — Handles the user interface, image input, and integration with the TensorFlow Lite model. Kotlin implementation details are kept within the Android project.
-- **`PythonModel/`** — Contains the Python scripts for baseline training and fine-tuning, along with model artifacts and evaluation outputs.
-- **`PythonModel/requirements.txt`** — Lists the Python dependencies required for model training.
+- Real-time camera-based waste classification.
+- Capture/freeze the current frame to inspect a prediction.
+- Prediction stabilization to reduce flickering between classes.
+- Light, dark, and system themes.
+- Adjustable animation and prediction-stabilization settings.
+- Developer options for confidence scores and custom confidence thresholds.
+- On-device inference with TensorFlow Lite; camera frames are processed locally and are not saved by the app.
 
-## PythonModel
+The app requires camera permission. The classifier predicts one of five labels: `glass`, `metal`, `paper`, `plastic`, or `trash`.
 
-### Training Scripts
+## Project structure
 
-| File | Purpose |
-|---|---|
-| `train.py` | Trains the initial waste classifier using transfer learning. |
-| `finetune.py` | Fine-tunes the existing baseline on a larger dataset and selects whether the updated model should replace it. |
+```text
+EcoVision/
+├── Android/
+│   ├── AndroidManifest.xml
+│   ├── build.gradle.kts
+│   ├── EcoTheme.kt
+│   ├── MainActivity.kt
+│   ├── MainMenuScreen.kt
+│   ├── SettingsScreen.kt
+│   ├── WasteClassifier.kt
+│   ├── labels.json
+│   └── waste_classifier.tflite
+└── PythonModel/
+    ├── train.py
+    ├── finetune.py
+    ├── finetune_v2.py
+    ├── requirements.txt
+    ├── data/
+    └── outputs/
+```
 
-### Model Training Method
+The `Android/` directory contains the app's source/module files. Create or open an Android Studio project and place these files in the corresponding app module locations as described below.
 
-EcoVision uses **transfer learning with MobileNetV2**, a pretrained convolutional neural network initialized with ImageNet weights. Instead of learning all visual features from scratch, the model reuses pretrained image features and adapts them to waste classification.
+---
 
-The classifier predicts one of five classes: `glass`, `metal`, `paper`, `plastic`, or `trash`.
+## Machine learning
 
-#### Baseline Training
+### Model architecture
 
-The baseline model was trained using approximately **2,500 waste images**.
+EcoVision uses **MobileNetV2** with ImageNet pretrained weights. The network is adapted to classify waste images into five classes. Input images are resized to `224 × 224`; preprocessing is included in the model.
 
-- Images are resized to `224 × 224` pixels.
-- The dataset is split into training (70%), validation (15%), and testing (15%) sets.
-- A new classification head is trained first, with the pretrained MobileNetV2 backbone frozen.
-- The final 30 backbone layers are then unfrozen for additional fine-tuning.
-- Data augmentation, class weighting, early stopping, and learning-rate reduction help improve generalization and stabilize training.
+### Baseline training
 
-#### Fine-Tuning
+The initial model was trained with approximately **2,500 images**.
 
-The fine-tuned version uses approximately **10,000 images**, including the images already used for baseline training.
+- The dataset is split into training (70%), validation (15%), and test (15%) subsets.
+- The classification head is trained while the MobileNetV2 backbone is frozen.
+- The final 30 backbone layers are then fine-tuned.
+- Data augmentation, class weighting, early stopping, and learning-rate reduction are used to support generalization.
 
-Rather than training a new model from scratch, `finetune.py` loads the saved baseline and adapts it using the expanded dataset.
+Run the baseline pipeline with `PythonModel/train.py`.
 
-Key characteristics:
+### Fine-tuning v1
 
-- **Duplicate detection:** SHA-256 hashes help identify duplicate images and prevent images from the original dataset splits from being added again.
-- **Preserved baseline:** The original model is backed up and retained for comparison.
-- **Selective fine-tuning:** Only the last 30 MobileNetV2 layers are eligible for training; Batch Normalization layers remain frozen.
-- **Conservative optimization:** Adam with a learning rate of `1e-5` is used, with early stopping and learning-rate reduction.
-- **Validation-based selection:** The candidate replaces the baseline only if validation accuracy improves, or if accuracy ties and validation loss decreases.
-- **Independent testing:** Both models are evaluated on the same held-out test set.
+The first fine-tuning stage expanded the dataset to approximately **10,000 images**, including images already used for baseline training.
 
-The selected model is exported to TensorFlow Lite for use in the Android application.
+The `finetune.py` script:
+- Uses SHA-256 hashes to detect duplicate images.
+- Preserves the original train/validation/test split and creates a separate working dataset.
+- Keeps a backup of the baseline model.
+- Fine-tunes only the last 30 MobileNetV2 layers; Batch Normalization layers remain frozen.
+- Uses Adam with a learning rate of `1e-5`, early stopping, and learning-rate reduction.
+- Selects the candidate using validation accuracy (and validation loss as a tie-breaker).
+- Evaluates the baseline and selected model on the same held-out test set.
 
-### Outputs
+### Fine-tuning v2
 
-The `PythonModel/outputs/` directory stores trained models and evaluation artifacts.
+The second fine-tuning iteration used **10,500 images**. It is implemented in `PythonModel/finetune_v2.py` and continues training the existing Keras model rather than starting from ImageNet weights again.
 
-| Artifact | Purpose |
-|---|---|
-| `waste_classifier1.tflite` | Baseline TensorFlow Lite model. |
-| `baseline_waste_classifier.keras` | Preserved baseline model used during fine-tuning. |
-| `waste_classifier.keras` | Current selected Keras model. |
-| `finetuned_candidate.keras` | Candidate produced by fine-tuning before model selection. |
-| `best_finetune.keras` | Best fine-tuning checkpoint based on validation loss. |
-| `waste_classifier.tflite` | Exported TensorFlow Lite model selected for deployment. |
-| `labels.json` | Class labels associated with the exported model. |
-| `metrics_*.json` | Per-class evaluation metrics for the baseline and selected model. |
-| `confusion_matrix_*.png` | Confusion matrix visualizations for model evaluation. |
+Main characteristics:
+- **Existing model as the starting point:** loads `outputs/waste_classifier.keras`.
+- **Old and new data support:** prefers the original `data/split/{train,val,test}` folders; alternatively, it can use optional `data/old_raw/<class>/` images. New images are placed in `data/raw/<class>/`.
+- **Duplicate and label-conflict handling:** SHA-256 hashes prevent duplicate images from crossing dataset splits. Identical image files assigned to different classes are excluded and recorded in `outputs/finetune_v2_conflicts.txt`.
+- **Test-set protection:** when the original split is available, its test images are reserved and excluded from training and validation.
+- **Fine-tuning configuration:** image size `224 × 224`, batch size `16`, up to `15` epochs, learning rate `1e-5`, and the last 30 MobileNetV2 layers eligible for training. Batch Normalization layers remain frozen.
+- **Class imbalance:** capped balanced class weights are used during training.
+- **Model selection:** compares the original model and fine-tuning candidate on validation macro-F1. The candidate is selected only if its macro-F1 is higher; otherwise, the original model is retained.
+- **Final evaluation:** evaluates the original and selected models on the held-out test set after model selection, then exports the selected model to TensorFlow Lite.
 
-Additional checkpoints may be generated during baseline training.
+The script requires at least **7 genuinely new, unique images per class** in `data/raw/`. The 10,500 figure describes the dataset used for this v2 iteration; the script reports actual split counts when it runs.
 
-## Installation and Running
+#### Fine-tuning v2 dataset layout
 
-### 1. Prerequisites
+Run the script from the `PythonModel/` directory. The required new images must be arranged as follows:
 
-Install:
+```text
+PythonModel/
+├── data/
+│   ├── raw/
+│   │   ├── glass/
+│   │   ├── metal/
+│   │   ├── paper/
+│   │   ├── plastic/
+│   │   └── trash/
+│   └── split/                 # preferred: original train/val/test split
+│       ├── train/<class>/
+│       ├── val/<class>/
+│       └── test/<class>/
+└── outputs/
+    └── waste_classifier.keras
+```
 
-- [Git](https://git-scm.com/downloads)
-- [Android Studio](https://developer.android.com/studio)
-- An Android device or emulator
+If the original `data/split/` is unavailable, the script can instead use optional old images from `data/old_raw/<class>/`. If neither old source exists, it warns that training will use only the new images, which may cause catastrophic forgetting.
 
-### 2. Download the needed files
+Run v2:
 
-- AndroidManifest.xml
-- MainActivity.kt
-- WasteClassifier.kt
-- build.gradle.kts
-- labels.json
-- waste_classifier.tflite
+```bash
+python finetune_v2.py
+```
 
-### 3. Open the Android Project
+V2 creates:
+- `outputs/waste_classifier_v2.keras` — selected Keras model.
+- `outputs/waste_classifier_v2.tflite` — selected TensorFlow Lite model.
+- `outputs/labels_v2.json` — class labels for the v2 model.
+- `outputs/finetune_v2_metrics.json` — original/candidate validation metrics and original/selected test metrics.
+- `outputs/v2_best_checkpoint.keras` — best fine-tuning checkpoint.
+- `outputs/finetune_v2_conflicts.txt` — created only when conflicting labels are detected.
 
-1. Launch Android Studio.
-2. Create a new Empty Views project with SDK 26 named ecovision
-3. Allow Gradle synchronization to finish.
-4. Replace the gradle app's(/src) build configuration.
-5. Replace the app's(/src) AndroidManifest.xml file
-6. Add all the .kt files in the apps directory(com.example.ecovision)
-7. Create the /assets folder in the /src directory and paste the labels.json and waste_classifier.tflite files into it.
+**Important:** v2 writes separate `*_v2` files. It does not automatically replace `waste_classifier.tflite` or `labels.json` used by the Android app. Review `finetune_v2_metrics.json` first. To deploy the v2 model, copy `waste_classifier_v2.tflite` into the Android assets folder under the exact name `waste_classifier.tflite`, and copy `labels_v2.json` as `labels.json`.
 
-### 4. Run the Application
+---
 
-1. Connect an Android device with USB debugging enabled, or start an Android emulator.
-2. Select the target device in Android Studio.
-3. Click **Run** to build and launch the application.
+## Installation and running
 
-If the project builds successfully, the app should install and launch on the selected device.
+### 1. Clone the repository
 
-### Optional: Run the Python Training Pipeline
+```bash
+git clone https://github.com/upydrop/EcoVision.git
+cd EcoVision
+```
 
-Python training is not required simply to run the Android application with its existing model.
+### 2. Run the Android application
 
-To install the training dependencies:
+#### Requirements
+
+- Android Studio with Android SDK and a compatible Android Gradle Plugin/Kotlin toolchain.
+- Android device or emulator with **API 26 (Android 8.0) or newer**.
+- A camera (or a device with a virtual camera in the emulator).
+
+#### Set up the Android Studio project
+
+The repository's `Android/` folder contains the app module source files and module Gradle configuration, not a complete standalone Android Studio project with root settings and Gradle wrapper.
+
+1. Open Android Studio and create a new **Empty Activity** project using **Jetpack Compose**.
+2. Set the project name to `EcoVision`, package/application ID to `com.example.ecovision`, and minimum SDK to **26**.
+3. In the app module, copy the Kotlin files from the repository's `Android/` folder into `app/src/main/java/com/example/ecovision/`:
+   - `MainActivity.kt`
+   - `WasteClassifier.kt`
+   - `EcoTheme.kt`
+   - `MainMenuScreen.kt`
+   - `SettingsScreen.kt`
+4. Copy `Android/AndroidManifest.xml` to `app/src/main/AndroidManifest.xml`.
+5. Create `app/src/main/assets/` and copy both model files from `Android/` into it:
+   - `waste_classifier.tflite`
+   - `labels.json`
+6. Add the dependencies below to the app module's `dependencies { }` block. Keep the Compose dependencies generated by Android Studio; the Compose BOM should manage their versions.
+
+```kotlin
+implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+implementation("androidx.camera:camera-core:1.4.2")
+implementation("androidx.camera:camera-camera2:1.4.2")
+implementation("androidx.camera:camera-lifecycle:1.4.2")
+implementation("androidx.camera:camera-view:1.4.2")
+implementation("org.tensorflow:tensorflow-lite:2.16.1")
+implementation("androidx.compose.material:material-icons-extended")
+```
+
+7. Make sure the app module has `buildFeatures { compose = true }`, Java/Kotlin target 11, and `minSdk = 26`. The repository's `Android/build.gradle.kts` can be used as a reference for the module configuration; it uses a Gradle version catalog for some standard AndroidX/Compose dependencies.
+8. Sync Gradle. Connect an Android device with USB debugging enabled or start an emulator, then click **Run**.
+
+When the app starts, grant camera permission. The app performs classification locally using the TensorFlow Lite model in `app/src/main/assets/`.
+
+### 3. Set up the Python training environment (optional)
+
+Python is needed only to train or fine-tune the model. It is **not** required to run the Android app with the model already included in the repository.
+
+Use **Python 3.10 or 3.11** for the pinned TensorFlow 2.15.1 environment.
+
+From the repository root:
 
 ```bash
 cd PythonModel
@@ -120,25 +197,24 @@ python -m venv .venv
 
 Activate the environment:
 
-**Windows**
-
+**Windows PowerShell**
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
 **Linux/macOS**
-
 ```bash
 source .venv/bin/activate
 ```
 
-Install the dependencies:
+Upgrade pip and install dependencies:
 
 ```bash
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-The training scripts expect images organized by class under `PythonModel/data/raw/`:
+For baseline training and v1 fine-tuning, the input images are expected under `data/raw/<class>/`:
 
 ```text
 data/raw/
@@ -155,18 +231,24 @@ Run baseline training:
 python train.py
 ```
 
-Run fine-tuning:
+Run v1 fine-tuning (requires the original split and baseline model):
 
 ```bash
 python finetune.py
 ```
 
-**Note:** Fine-tuning requires the original dataset splits and baseline model. The expected model and data paths must exist before running it. Training generates or updates files under `PythonModel/outputs/`.
+Run v2 fine-tuning (requires `outputs/waste_classifier.keras` and the new images described in the v2 section):
+
+```bash
+python finetune_v2.py
+```
+
+Training outputs are written to `PythonModel/outputs/`. Keep the original data split and model artifacts backed up before running training scripts.
 
 ## Technologies
 
-- **Android:** Kotlin
-- **Machine Learning:** TensorFlow / Keras
-- **Model Architecture:** MobileNetV2
-- **Mobile Inference:** TensorFlow Lite
-- **Training Utilities:** NumPy, Matplotlib, scikit-learn
+- **Android:** Kotlin, Jetpack Compose, CameraX
+- **Machine learning:** TensorFlow / Keras
+- **Model architecture:** MobileNetV2
+- **On-device inference:** TensorFlow Lite
+- **Python utilities:** NumPy, scikit-learn, Matplotlib, Pillow

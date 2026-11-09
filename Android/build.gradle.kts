@@ -5,20 +5,15 @@ plugins {
 
 android {
     namespace = "com.example.ecovision"
-    compileSdk {
-        version = release(37)
-    }
-
+    compileSdk { version = release(37) }
     defaultConfig {
         applicationId = "com.example.ecovision"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
     buildTypes {
         release {
             optimization {
@@ -31,9 +26,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    buildFeatures {
-        compose = true
-    }
+    buildFeatures { compose = true }
 }
 
 dependencies {
@@ -59,4 +52,5 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.2")
     implementation("androidx.camera:camera-view:1.4.2")
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
+    implementation("org.maplibre.gl:android-sdk:13.7.1")
 }

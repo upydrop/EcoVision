@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
@@ -39,7 +40,8 @@ fun MainMenuScreen(
     animations: Boolean,
     onCamera: () -> Unit,
     onSettings: () -> Unit,
-    onAbout: () -> Unit
+    onAbout: () -> Unit,
+    onMap: () -> Unit
 ) {
     var visible by remember { mutableStateOf(!animations) }
     LaunchedEffect(animations) { visible = true }
@@ -51,6 +53,9 @@ fun MainMenuScreen(
         drawCircle(palette.blobA, size.width * 0.5f, Offset(size.width * 0.05f, size.height * 0.55f))
         drawCircle(palette.blobB, size.width * 0.4f, Offset(size.width * 0.85f, size.height * 0.8f))
     }) {
+        Box(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 22.dp, top = 14.dp)) {
+            DockIcon(Icons.Rounded.Info, palette, onAbout, "О приложении")
+        }
         Column(
             Modifier.align(Alignment.Center).offset(y = (-70).dp)
                 .graphicsLayer { this.alpha = alpha; scaleX = scale; scaleY = scale },
@@ -71,23 +76,23 @@ fun MainMenuScreen(
         ) {
             Row(Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                DockIcon(Icons.Rounded.Info, palette, onAbout)
+                DockIcon(Icons.Rounded.LocationOn, palette, onMap, "Карта сортировки")
                 Box(Modifier.size(78.dp).shadow(8.dp, CircleShape)
                     .background(palette.accent, CircleShape).clickable(onClick = onCamera),
                     contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.PhotoCamera, contentDescription = "Камера", tint = Color.White, modifier = Modifier.size(38.dp))
                 }
-                DockIcon(Icons.Rounded.Settings, palette, onSettings)
+                DockIcon(Icons.Rounded.Settings, palette, onSettings, "Настройки")
             }
         }
     }
 }
 
 @Composable
-private fun DockIcon(icon: ImageVector, palette: EcoPalette, onClick: () -> Unit) {
+private fun DockIcon(icon: ImageVector, palette: EcoPalette, onClick: () -> Unit, description: String) {
     Box(Modifier.size(52.dp).background(palette.background, CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center) {
-        Icon(icon, contentDescription = null, tint = palette.text, modifier = Modifier.size(26.dp))
+        Icon(icon, contentDescription = description, tint = palette.text, modifier = Modifier.size(26.dp))
     }
 }
 

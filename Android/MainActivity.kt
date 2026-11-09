@@ -63,7 +63,7 @@ private fun sortingTip(label: String): String {
     }
 }
 
-private enum class Screen { Menu, Camera, Settings, About, Developer }
+private enum class Screen { Menu, Camera, Settings, About, Developer, Map }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,7 +84,9 @@ class MainActivity : ComponentActivity() {
                     Screen.Menu -> MainMenuScreen(palette, prefs.animations,
                         onCamera = { screen = Screen.Camera },
                         onSettings = { screen = Screen.Settings },
-                        onAbout = { screen = Screen.About })
+                        onAbout = { screen = Screen.About },
+                        onMap = { screen = Screen.Map })
+                    Screen.Map -> RecyclingMapScreen(palette, onBack = { screen = Screen.Menu })
                     Screen.Camera -> WasteCameraScreen(palette, prefs, onBack = { screen = Screen.Menu }, onSettings = { screen = Screen.Settings })
                     Screen.Settings -> SettingsScreen(palette, prefs, themeMode,
                         onThemeChange = { themeMode = it; prefs.theme = it },
